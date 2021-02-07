@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "8fd83bcd7dbbf8813de27166f69ea650a65abeb8",
+    "author": "abusjahn <abusjahn@healthtwist.de>",
+    "time": "2021-02-07 19:56:50",
+    "files": 1,
+    "merge": false,
+    "message": "Update tunnel.c\n\nJust a minor typo in message in line 111"
+  },
+  "remote": "https://github.com/ropensci/ssh",
+  "pkg": "ssh"
+}
