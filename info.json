@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "01ec91838850159f78dbc87fca7336224a72c1ec",
+    "author": "Jeroen Ooms <jeroenooms@gmail.com>",
+    "time": "2025-03-26T22:23:33Z",
+    "files": 6,
+    "merge": false,
+    "message": "Cleanup build\n"
+  },
+  "repo": "https://github.com/ropensci/ssh",
+  "pkg": "ssh",
+  "time": "2026-08-30T07:28:58Z"
+}

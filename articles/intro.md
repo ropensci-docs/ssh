@@ -1,0 +1,261 @@
+# Secure Shell (SSH) Client for R
+
+## Installation
+
+On Windows or MacOS you can install the binary package directly from
+CRAN:
+
+``` r
+
+install.packages("ssh")
+```
+
+Installation from source requires `libssh` (which is **not** `libssh2`).
+On **Debian** or **Ubuntu** use
+[libssh-dev](https://packages.debian.org/testing/libssh-dev):
+
+    sudo apt-get install -y libssh-dev
+
+On **Fedora** we need
+[libssh-devel](https://src.fedoraproject.org/rpms/libssh):
+
+    sudo yum install libssh-devel
+
+On **CentOS / RHEL** we install
+[libssh-devel](https://src.fedoraproject.org/rpms/libssh) via EPEL:
+
+    sudo yum install epel-release
+    sudo yum install libssh-devel
+
+On **OS-X** use libssh from Homebrew:
+
+    brew install libssh
+
+## Connecting to an SSH server
+
+First create an ssh session by connecting to an SSH server.
+
+``` r
+
+session <- ssh_connect("jeroen@dev.opencpu.org")
+print(session)
+```
+
+    <ssh session>
+    jeroen@dev.opencpu.org:22 (connected)
+    server: 90:eb:52:6b:ee:fc:de:f1:c0:66:6c:53:82:dd:ce:80:d3:85:1e:d8
+
+Once established, a session is closed automatically by the garbage
+collector when the object goes out of scope or when R quits. You can
+also manually close it using
+[`ssh_disconnect()`](https://docs.ropensci.org/ssh/reference/ssh.md) but
+this is not strictly needed.
+
+## Authentication
+
+The client attempts to use the following authentication methods (in this
+order) until one succeeds:
+
+1.  try key from `privkey` argument in
+    [`ssh_connect()`](https://docs.ropensci.org/ssh/reference/ssh.md) if
+    specified
+2.  if ssh-agent is available, try private key from ssh-agent
+3.  try user key specified in `~/.ssh/config` or any of the default
+    locations: `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`, `~/.ssh/id_rsa`,
+    or `.ssh/id_dsa`.
+4.  Try challenge-response password authentication (if permitted by the
+    server)
+5.  Try plain password authentication (if permitted by the server)
+
+To debug authentication set verbosity to at least level 2 or 3:
+
+``` r
+
+session <- ssh_connect("jeroen@dev.opencpu.org", verbose = 2)
+```
+
+    ssh_socket_connect: Nonblocking connection socket: 7
+    ssh_connect: Socket connecting, now waiting for the callbacks to work
+    socket_callback_connected: Socket connection callback: 1 (0)
+    ssh_client_connection_callback: SSH server banner: SSH-2.0-OpenSSH_7.2p2 Ubuntu-4ubuntu2.4
+    ssh_analyze_banner: Analyzing banner: SSH-2.0-OpenSSH_7.2p2 Ubuntu-4ubuntu2.4
+    ssh_analyze_banner: We are talking to an OpenSSH client version: 7.2 (70200)
+    ssh_packet_dh_reply: Received SSH_KEXDH_REPLY
+    ssh_client_curve25519_reply: SSH_MSG_NEWKEYS sent
+    ssh_packet_newkeys: Received SSH_MSG_NEWKEYS
+    ssh_packet_newkeys: Signature verified and valid
+    ssh_packet_userauth_failure: Access denied. Authentication that can continue: publickey
+    ssh_packet_userauth_failure: Access denied. Authentication that can continue: publickey
+    ssh_agent_get_ident_count: Answer type: 12, expected answer: 12
+    ssh_userauth_publickey_auto: Successfully authenticated using /Users/jeroen/.ssh/id_rsa
+
+Tools for setting up and debugging your ssh keys are provided via the
+[`credentials` package](https://cran.r-project.org/package=credentials).
+
+``` r
+
+ssh_key_info()
+```
+
+    $key
+    [1] "/Users/jeroen/.ssh/id_ed25519"
+
+    $pubkey
+    [1] "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILGN+5tybmwKhcxvnwPSKlrp39Ni1gMD0UhV4gCxHg/x"
+
+## Execute Script or Command
+
+Run a command or script on the host and block while it runs. By default
+stdout and stderr are steamed directly back to the client. This function
+returns the exit status of the remote command (hence it does not
+automatically error for an unsuccessful exit status).
+
+``` r
+
+out <- ssh_exec_wait(session, command = 'whoami')
+```
+
+    jeroen
+
+``` r
+
+print(out)
+```
+
+    [1] 0
+
+You can also run a script that consists of multiple commands.
+
+``` r
+
+ssh_exec_wait(session, command = c(
+  'curl -O https://cran.r-project.org/src/contrib/Archive/jsonlite/jsonlite_1.4.tar.gz',
+  'R CMD check jsonlite_1.4.tar.gz',
+  'rm -f jsonlite_1.4.tar.gz'
+))
+```
+
+      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                     Dload  Upload   Total   Spent    Left  Speed
+    100 1071k  100 1071k    0     0   654k      0  0:00:01  0:00:01 --:--:--  654k
+    * using log directory '/home/jeroen/jsonlite.Rcheck'
+    * using R version 3.4.3 (2017-11-30)
+    * using platform: x86_64-pc-linux-gnu (64-bit)
+    * using session charset: ASCII
+    * checking for file 'jsonlite/DESCRIPTION' ... OK
+    * this is package 'jsonlite' version '1.4'
+    * checking package namespace information ... OK
+    * checking package dependencies ...
+    ...
+
+### Capturing output
+
+The
+[`ssh_exec_internal()`](https://docs.ropensci.org/ssh/reference/ssh_exec.md)
+is a convenient wrapper for
+[`ssh_exec_wait()`](https://docs.ropensci.org/ssh/reference/ssh_exec.md)
+which buffers the output steams and returns them as a raw vector. Also
+it raises an error by default when the remote command was not
+successful.
+
+``` r
+
+out <- ssh_exec_internal(session, "R -e 'rnorm(10)'")
+print(out$status)
+```
+
+    [1] 0
+
+``` r
+
+cat(rawToChar(out$stdout))
+```
+
+
+    R version 4.1.2 (2021-11-01) -- "Bird Hippie"
+    Copyright (C) 2021 The R Foundation for Statistical Computing
+    Platform: x86_64-pc-linux-gnu (64-bit)
+
+    R is free software and comes with ABSOLUTELY NO WARRANTY.
+    You are welcome to redistribute it under certain conditions.
+    Type 'license()' or 'licence()' for distribution details.
+
+      Natural language support but running in an English locale
+
+    R is a collaborative project with many contributors.
+    Type 'contributors()' for more information and
+    'citation()' on how to cite R or R packages in publications.
+
+    Type 'demo()' for some demos, 'help()' for on-line help, or
+    'help.start()' for an HTML browser interface to help.
+    Type 'q()' to quit R.
+
+    > rnorm(10)
+     [1] -0.3837970  0.9754719  0.9999716 -0.2634097  0.1845797 -0.5664418
+     [7]  0.6975547 -0.2063897 -0.7263869  2.3826802
+    > 
+    > 
+
+This function is very useful if you are running a remote command and
+want to use it’s output as if you had executed it locally.
+
+### Using sudo
+
+Note that the exec functions are non interactive so they cannot prompt
+for a sudo password. A trick is to use `-S` which reads the password
+from stdin:
+
+``` r
+
+command <- 'echo "mypassword!" | sudo -s -S apt-get update -y'
+out <- ssh_exec_wait(session, command)
+```
+
+Be very careful with hardcoding passwords!
+
+## Transfer Files via SCP
+
+Upload and download files via SCP. Directories are automatically
+traversed as in `scp -r`.
+
+``` r
+
+# Upload a file to the server
+file_path <- R.home("COPYING")
+scp_upload(session, file_path)
+```
+
+``` r
+
+# Download the file back and verify it is the same
+scp_download(session, "COPYING", to = tempdir())
+tools::md5sum(file_path)
+tools::md5sum(file.path(tempdir(), "COPYING"))
+```
+
+## Hosting a Tunnel
+
+Opens a port on your machine and tunnel all traffic to a custom target
+host via the SSH server.
+
+``` r
+
+ssh_tunnel(session, port = 5555, target = "ds043942.mongolab.com:43942")
+```
+
+This function blocks while the tunnel is active. Use the tunnel by
+connecting to `localhost:5555` from a separate process. The tunnel can
+only be used once and will automatically be closed when the client
+disconnects.
+
+## Disconnecting
+
+When you are done with the session you should disconnect:
+
+``` r
+
+ssh_disconnect(session)
+```
+
+If you forgot to disconnect, the garbage collector will do so for you
+(with a warning).
